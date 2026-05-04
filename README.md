@@ -100,7 +100,7 @@ The dashboard connects to the API server via WebSocket for real-time updates and
 
 ## Features
 
-### Implemented (Phase 0 MVP)
+### Implemented 
 
 | Feature | Description |
 |---------|-------------|
@@ -119,17 +119,6 @@ The dashboard connects to the API server via WebSocket for real-time updates and
 | **Synthetic data generator** | 4 realistic APT attack scenarios for testing and demonstration |
 | **Single-file dashboard** | React + D3.js HTML file, no build step required |
 
-### Planned (Phase 2-3)
-
-- [ ] DBSCAN clustering with SecureBERT embeddings
-- [ ] GraphSAGE path scoring on the full ATT&CK knowledge graph
-- [ ] GPT-4o semantic verification of attack chain logic
-- [ ] Bayesian network probability inference
-- [ ] MCTS game-tree search for defense optimization
-- [ ] Multi-round LLM debate between Defense and Tracing agents
-- [ ] Real SOAR platform API integration (Phantom / XSOAR)
-- [ ] Neo4j knowledge graph with full ATT&CK v15 data
-- [ ] React production dashboard with timeline visualization
 
 ---
 

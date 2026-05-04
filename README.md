@@ -274,10 +274,3 @@ python tools/attck_importer.py --neo4j-uri bolt://localhost:7687 --neo4j-user ne
 ---
 
 
----
-
-## Acknowledgments
-
-- Built on the [MITRE ATT&CK](https://attack.mitre.org/) framework
-- Inspired by multi-agent systems research in cybersecurity automation
-- Knowledge graph schema based on ATT&CK v15 Enterprise matrix

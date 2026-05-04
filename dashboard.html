@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AegisThreat — APT 攻击链溯源与防御</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a0e17;color:#c9d1d9;overflow:hidden}
+#root{display:flex;height:100vh;flex-direction:column}
+.header{background:#111827;border-bottom:1px solid #1f2937;padding:8px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.header h1{font-size:1.15rem;font-weight:700;color:#58a6ff;display:flex;align-items:center;gap:8px}
+.header h1 span{color:#8b949e;font-size:0.75rem;font-weight:400}
+.stats-row{display:flex;gap:16px}
+.stat{background:#161b22;border:1px solid #21262d;border-radius:6px;padding:6px 14px;text-align:center}
+.stat .num{font-size:1.3rem;font-weight:700;color:#58a6ff}
+.stat .lbl{font-size:0.65rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.05em}
+.main{display:flex;flex:1;overflow:hidden}
+.panel{border-right:1px solid #1f2937;overflow-y:auto;padding:10px}
+.panel:last-child{border-right:none}
+.panel-left{width:280px;flex-shrink:0}
+.panel-center{flex:1;min-width:0;position:relative}
+.panel-right{width:340px;flex-shrink:0}
+.panel-title{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:#8b949e;margin-bottom:8px;font-weight:600}
+.form-group{margin-bottom:8px}
+.form-group label{display:block;font-size:0.68rem;color:#8b949e;margin-bottom:3px}
+.form-group input,.form-group select{width:100%;padding:6px 8px;background:#161b22;border:1px solid #21262d;border-radius:4px;color:#c9d1d9;font-size:0.78rem}
+.form-group input:focus{outline:none;border-color:#58a6ff}
+.btn{width:100%;padding:8px;border:none;border-radius:4px;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-primary{background:#238636;color:#fff}
+.btn-primary:hover{background:#2ea043}
+.btn-danger{background:#da3633;color:#fff}
+.btn-danger:hover{background:#f85149}
+.btn-approve{background:#1f6feb;color:#fff}
+.btn-approve:hover{background:#388bfd}
+.btn-sm{padding:4px 8px;font-size:0.7rem;width:auto;margin:2px}
+.card{background:#161b22;border:1px solid #21262d;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:0.72rem}
+.card .card-id{color:#58a6ff;font-weight:600;font-family:monospace;font-size:0.7rem}
+.card .card-ttps{color:#d2a8ff;margin-top:2px}
+.card .card-summary{color:#8b949e;margin-top:3px;line-height:1.3;max-height:40px;overflow:hidden}
+.card .card-meta{display:flex;justify-content:space-between;margin-top:4px;color:#484f58;font-size:0.65rem}
+.chain-node{fill:#1f6feb;stroke:#58a6ff;stroke-width:1.5}
+.chain-node-predicted{fill:#da3633;stroke:#f85149;stroke-width:1.5;stroke-dasharray:4 2}
+.chain-edge{stroke:#30363d;stroke-width:1.2;fill:none}
+.chain-edge-predicted{stroke:#da3633;stroke-width:1;stroke-dasharray:6 3;fill:none}
+.chain-label{font-size:8px;fill:#8b949e;text-anchor:middle}
+svg text{user-select:none}
+.badge{display:inline-block;padding:2px 6px;border-radius:10px;font-size:0.62rem;font-weight:600;margin-right:3px}
+.badge-high{background:#da363322;color:#f85149}
+.badge-medium{background:#d2992222;color:#d29922}
+.badge-low{background:#3fb95022;color:#3fb950}
+.badge-info{background:#58a6ff22;color:#58a6ff}
+.toast{position:fixed;top:16px;right:16px;background:#238636;color:#fff;padding:10px 16px;border-radius:6px;font-size:0.78rem;z-index:999;animation:fadein .3s}
+@keyframes fadein{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.ws-indicator{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.ws-connected{background:#3fb950}
+.ws-disconnected{background:#da3633}
+.empty-state{text-align:center;color:#484f58;padding:40px 20px;font-size:0.78rem}
+.tab-row{display:flex;gap:2px;margin-bottom:8px}
+.tab{flex:1;padding:4px 8px;background:#111827;border:1px solid #21262d;border-radius:4px 4px 0 0;color:#8b949e;font-size:0.68rem;text-align:center;cursor:pointer;border-bottom:none}
+.tab.active{background:#161b22;color:#58a6ff;border-color:#30363d}
+.decision-action{padding:3px 0;border-bottom:1px solid #21262d22;font-size:0.68rem}
+.decision-action .act{color:#d2a8ff;font-weight:600}
+.decision-action .tgt{color:#58a6ff;font-family:monospace}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,useMemo} = React;
+
+const API = "http://localhost:8000";
+const WS_URL = "ws://localhost:8000/ws";
+
+// ── Scenarios ──────────────────────────────
+const SCENARIOS = [
+  {id:"phishing-to-exfil",name:"钓鱼→外传 (APT29)",count:9},
+  {id:"brute-force-lateral",name:"爆破→横向→破坏",count:8},
+  {id:"webapp-exploit",name:"Web漏洞→Shell→外传",count:5},
+  {id:"supply-chain",name:"供应链投毒→潜伏",count:6},
+];
+
+// ── Main App ───────────────────────────────
+function App(){
+  const [fragments,setFragments] = useState([]);
+  const [chains,setChains] = useState([]);
+  const [decisions,setDecisions] = useState([]);
+  const [stats,setStats] = useState({fragments_count:0,chains_count:0,decisions_count:0});
+  const [wsConnected,setWsConnected] = useState(false);
+  const [selectedChain,setSelectedChain] = useState(null);
+  const [selectedDecision,setSelectedDecision] = useState(null);
+  const [tab,setTab] = useState("chains");
+  const [toast,setToast] = useState(null);
+  const [menuOpen,setMenuOpen] = useState(false);
+  const wsRef = useRef(null);
+
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null),2500); };
+
+  // WebSocket
+  useEffect(()=>{
+    let ws;
+    const connect = () => {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => setWsConnected(true);
+      ws.onclose = () => { setWsConnected(false); setTimeout(connect,3000); };
+      ws.onmessage = (e) => {
+        try{
+          const data = JSON.parse(e.data);
+          if(data.type==="fragment"){ setFragments(prev=>[...prev.slice(-99),data.payload]); fetchStats(); }
+          else if(data.type==="chain"){ setChains(prev=>[...prev.slice(-99),data.payload]); fetchStats(); showToast(`新攻击链: ${data.payload?.chain_id?.slice(0,16)}`); }
+          else if(data.type==="decision"){ setDecisions(prev=>[...prev.slice(-99),data.payload]); fetchStats(); showToast(`新决策: ${data.payload?.decision_id?.slice(0,16)}`); }
+        }catch(ex){}
+      };
+      ws.onerror = () => ws?.close();
+    };
+    connect();
+    wsRef.current = ws;
+    return () => ws?.close();
+  },[]);
+
+  const fetchStats = useCallback(async()=>{
+    try{ const r=await fetch(`${API}/stats`); const d=await r.json(); setStats(d); }catch(ex){}
+  },[]);
+
+  useEffect(()=>{fetchStats();},[fetchStats]);
+
+  // Submit alert
+  const submitAlert = async(alert) => {
+    try{
+      const r = await fetch(`${API}/alerts`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(alert)});
+      const d = await r.json();
+      showToast(d.fragment_id ? `Fragment: ${d.fragment_id.slice(0,16)} (conf=${d.confidence?.toFixed(2)})` : "Alert buffered");
+    }catch(ex){ showToast("API 未连接"); }
+  };
+
+  // Submit batch scenario
+  const runScenario = async(scenarioId) => {
+    try{
+      const r = await fetch(`${API}/alerts/batch`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(scenarioAlerts[scenarioId] || [])});
+      const d = await r.json();
+      showToast(`场景已提交: ${d.accepted} 条告警`);
+    }catch(ex){ showToast("API 未连接 — 请先启动服务器: python -m aegis.cli server"); }
+  };
+
+  // Approve decision
+  const approveDecision = async(decisionId, approved) => {
+    try{
+      await fetch(`${API}/decisions/${decisionId}/approve`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({approved,approved_by:"analyst",comment:""})});
+      showToast(approved ? "决策已批准" : "决策已拒绝");
+    }catch(ex){}
+  };
+
+  return (
+    <>
+      {toast && <div className="toast">{toast}</div>}
+
+      {/* Header */}
+      <div className="header">
+        <h1>AEgisThreat <span>APT 攻击链溯源与自适应防御</span></h1>
+        <div className="stats-row">
+          <div className="stat"><div className="num">{stats.fragments_count||fragments.length}</div><div className="lbl">Fragments</div></div>
+          <div className="stat"><div className="num">{stats.chains_count||chains.length}</div><div className="lbl">Chains</div></div>
+          <div className="stat"><div className="num">{stats.decisions_count||decisions.length}</div><div className="lbl">Decisions</div></div>
+          <div className="stat">
+            <span className={`ws-indicator ${wsConnected?'ws-connected':'ws-disconnected'}`}></span>
+            <div className="lbl">{wsConnected?'Live':'Off'}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div className="main">
+        {/* Left Panel */}
+        <div className="panel panel-left">
+          <div className="panel-title">告警提交</div>
+          <AlertForm onSubmit={submitAlert} />
+
+          <div className="panel-title" style={{marginTop:12}}>快速场景</div>
+          {SCENARIOS.map(s=>(
+            <button key={s.id} className="btn btn-primary btn-sm" style={{width:'100%',marginBottom:4,textAlign:'left'}}
+              onClick={()=>runScenario(s.id)}>
+              {s.name} ({s.count} alerts)
+            </button>
+          ))}
+
+          <div className="panel-title" style={{marginTop:12}}>最近 Fragments</div>
+          {fragments.slice(-8).reverse().map(f=>(
+            <div key={f.fragment_id} className="card" onClick={()=>setSelectedChain(chains.find(c=>c.fragment_id===f.fragment_id))}>
+              <div className="card-id">{f.fragment_id?.slice(0,16)}</div>
+              <div className="card-ttps">{(f.suspected_ttps||[]).map(t=>t.technique_id).join(' ')}</div>
+              <div className="card-summary">{(f.summary||'').slice(0,80)}</div>
+              <div className="card-meta">
+                <span className={`badge ${f.confidence>=0.8?'badge-high':f.confidence>=0.5?'badge-medium':'badge-low'}`}>
+                  conf={f.confidence?.toFixed(2)}
+                </span>
+                <span>{f.raw_alert_count} alerts</span>
+              </div>
+            </div>
+          ))}
+          {fragments.length===0 && <div className="empty-state">暂无数据<br/>提交告警或运行场景</div>}
+        </div>
+
+        {/* Center Panel — Graph */}
+        <div className="panel panel-center">
+          <div className="panel-title" style={{position:'absolute',top:10,left:14,zIndex:1}}>
+            攻击链图谱
+            {selectedChain && <span className="badge badge-info" style={{marginLeft:8}}>{selectedChain.chain_id?.slice(0,16)}</span>}
+          </div>
+          <ChainGraph chain={selectedChain || chains[chains.length-1]} width={800} height={500} />
+        </div>
+
+        {/* Right Panel */}
+        <div className="panel panel-right">
+          <div className="tab-row">
+            <div className={`tab ${tab==='chains'?'active':''}`} onClick={()=>setTab('chains')}>攻击链 ({chains.length})</div>
+            <div className={`tab ${tab==='decisions'?'active':''}`} onClick={()=>setTab('decisions')}>决策 ({decisions.length})</div>
+          </div>
+
+          {tab==='chains' && <>
+            {chains.slice(-20).reverse().map(c=>(
+              <div key={c.chain_id} className="card" onClick={()=>setSelectedChain(c)}
+                style={{cursor:'pointer',borderColor:selectedChain?.chain_id===c.chain_id?'#58a6ff':'#21262d'}}>
+                <div className="card-id">{c.chain_id?.slice(0,16)}</div>
+                <div className="card-ttps" style={{fontSize:'0.68rem'}}>
+                  {(c.nodes||[]).sort((a,b)=>a.step-b.step).map(n=>
+                    <span key={n.step} className={`badge ${n.is_predicted?'badge-high':'badge-info'}`}>{n.technique_id}</span>
+                  )}
+                </div>
+                <div className="card-summary">
+                  {(c.nodes||[]).sort((a,b)=>a.step-b.step).map(n=>n.tactic).filter((v,i,a)=>a.indexOf(v)===i).join(' → ')}
+                </div>
+                <div className="card-meta">
+                  <span className={`badge ${c.overall_confidence>=0.8?'badge-high':c.overall_confidence>=0.5?'badge-medium':'badge-low'}`}>
+                    conf={c.overall_confidence?.toFixed(2)}
+                  </span>
+                  <span>{c.step_count} steps</span>
+                  {c.predicted_next_steps?.length>0 && <span className="badge badge-high">next: {c.predicted_next_steps.map(p=>p.technique_id).join(',')}</span>}
+                </div>
+              </div>
+            ))}
+            {chains.length===0 && <div className="empty-state">暂无攻击链</div>}
+          </>}
+
+          {tab==='decisions' && <>
+            {decisions.slice(-20).reverse().map(d=>(
+              <div key={d.decision_id} className="card" onClick={()=>setSelectedDecision(d)}
+                style={{cursor:'pointer',borderColor:selectedDecision?.decision_id===d.decision_id?'#58a6ff':'#21262d'}}>
+                <div className="card-id">{d.decision_id?.slice(0,16)}</div>
+                <div style={{color:'#d2a8ff',fontSize:'0.68rem',marginTop:2}}>
+                  {(d.steps||[]).slice(0,5).map(s=>(
+                    <span key={s.order} className="badge badge-info">{s.action}</span>
+                  ))}
+                  {(d.steps||[]).length>5 && <span style={{color:'#8b949e'}}>+{d.steps.length-5}</span>}
+                </div>
+                <div className="card-meta">
+                  <span>Impact: {d.business_impact?.score}/100</span>
+                  <span>{d.step_count||d.steps?.length} steps</span>
+                  {d.requires_human_approval && <span className="badge badge-medium">待审批</span>}
+                </div>
+                {d.requires_human_approval!==false && (
+                  <div style={{marginTop:4,display:'flex',gap:4}}>
+                    <button className="btn btn-approve btn-sm" onClick={(e)=>{e.stopPropagation();approveDecision(d.decision_id,true)}}>批准</button>
+                    <button className="btn btn-danger btn-sm" onClick={(e)=>{e.stopPropagation();approveDecision(d.decision_id,false)}}>拒绝</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {decisions.length===0 && <div className="empty-state">暂无决策</div>}
+          </>}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Alert Form ─────────────────────────────
+function AlertForm({onSubmit}){
+  const [form,setForm] = useState({rule_name:"brute_force",source_ip:"91.234.55.12",destination_ip:"10.0.0.5",hostname:"vpn-gateway",username:"asmith",action:"500 failed login attempts",severity:"high"});
+
+  const handleSubmit = (e) => { e.preventDefault(); onSubmit({...form,timestamp:new Date().toISOString()}); };
+
+  const update = (field) => (e) => setForm(prev=>({...prev,[field]:e.target.value}));
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="form-group"><label>规则名称</label><input value={form.rule_name} onChange={update("rule_name")}/></div>
+      <div className="form-group"><label>源 IP</label><input value={form.source_ip} onChange={update("source_ip")}/></div>
+      <div className="form-group"><label>目标 IP</label><input value={form.destination_ip} onChange={update("destination_ip")}/></div>
+      <div className="form-group"><label>主机名</label><input value={form.hostname} onChange={update("hostname")}/></div>
+      <div className="form-group"><label>用户名</label><input value={form.username} onChange={update("username")}/></div>
+      <div className="form-group"><label>动作描述</label><input value={form.action} onChange={update("action")}/></div>
+      <div className="form-group"><label>严重度</label>
+        <select value={form.severity} onChange={update("severity")}>
+          <option value="critical">Critical</option><option value="high">High</option>
+          <option value="medium">Medium</option><option value="low">Low</option>
+        </select>
+      </div>
+      <button className="btn btn-primary" type="submit">提交告警</button>
+    </form>
+  );
+}
+
+// ── Chain Graph (D3) ───────────────────────
+function ChainGraph({chain,width,height}){
+  const svgRef = useRef(null);
+
+  useEffect(()=>{
+    if(!chain?.nodes?.length){
+      d3.select(svgRef.current).selectAll("*").remove();
+      d3.select(svgRef.current).append("text").attr("x",width/2).attr("y",height/2)
+        .attr("text-anchor","middle").attr("fill","#484f58").attr("font-size","0.85rem")
+        .text("选择一个攻击链以查看图谱");
+      return;
+    }
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove();
+
+    const nodes = (chain.nodes||[]).sort((a,b)=>a.step-b.step).map((n,i)=>({
+      ...n, id:n.technique_id+'_'+i, x:80 + i*((width-160)/Math.max(1,(chain.nodes||[]).length-1)), y:height/2 + (Math.random()-0.5)*80,
+    }));
+
+    // Layout: horizontal timeline
+    const n = nodes.length;
+    nodes.forEach((node,i)=>{
+      node.x = 100 + i * ((width-200)/Math.max(1,n-1));
+      node.y = height/2 + (i%2===0 ? -40 : 40);
+    });
+
+    // Edges
+    const edges = [];
+    for(let i=0;i<nodes.length-1;i++){
+      edges.push({source:nodes[i],target:nodes[i+1],predicted:nodes[i+1].is_predicted});
+    }
+
+    const g = svg.append("g");
+
+    // Draw edges
+    g.selectAll("line").data(edges).enter().append("line")
+      .attr("x1",d=>d.source.x).attr("y1",d=>d.source.y)
+      .attr("x2",d=>d.target.x).attr("y2",d=>d.target.y)
+      .attr("class",d=>d.predicted?"chain-edge-predicted":"chain-edge");
+
+    // Draw nodes
+    const nodeG = g.selectAll("g.node").data(nodes).enter().append("g")
+      .attr("transform",d=>`translate(${d.x},${d.y})`);
+
+    nodeG.append("circle")
+      .attr("r",d=>d.is_predicted?16:20)
+      .attr("class",d=>d.is_predicted?"chain-node-predicted":"chain-node")
+      .attr("opacity",d=>d.confidence||0.7);
+
+    nodeG.append("text")
+      .attr("dy","0.35em").attr("text-anchor","middle")
+      .attr("fill","#fff").attr("font-size","7px").attr("font-weight","bold")
+      .text(d=>d.technique_id);
+
+    nodeG.append("text")
+      .attr("dy","1.6em").attr("text-anchor","middle")
+      .attr("fill","#8b949e").attr("font-size","6.5px")
+      .text(d=>(d.tactic||'').slice(0,10));
+
+    // Legend
+    svg.append("text").attr("x",14).attr("y",height-22).attr("fill","#58a6ff").attr("font-size","8px")
+      .text("● 已观测");
+    svg.append("text").attr("x",80).attr("y",height-22).attr("fill","#f85149").attr("font-size","8px")
+      .text("◇ 预测");
+
+    svg.append("text").attr("x",14).attr("y",height-6).attr("fill","#484f58").attr("font-size","7px")
+      .text(`置信度: ${(chain.overall_confidence*100).toFixed(0)}% | ${chain.step_count} 步`);
+
+  },[chain,width,height]);
+
+  return <svg ref={svgRef} width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" style={{background:'#0d1117'}}></svg>;
+}
+
+// ── Scenario data (embedded for offline use) ─
+const scenarioAlerts = {
+  "phishing-to-exfil": [
+    {rule_name:"phishing_email_detected",source_ip:"45.67.89.10",destination_ip:"10.0.0.5",hostname:"ws-finance-07",username:"jwilson",action:"Malicious attachment delivered",severity:"high"},
+    {rule_name:"macro_execution_detected",source_ip:"10.0.0.5",hostname:"ws-finance-07",username:"jwilson",action:"Word macro executed PS download",severity:"critical"},
+    {rule_name:"suspicious_download",source_ip:"185.220.101.34",hostname:"ws-finance-07",action:"PS downloaded payload",severity:"high"},
+    {rule_name:"c2_communication",hostname:"ws-finance-07",action:"HTTPS beacon every 60s",severity:"critical",domain:"update-service.net"},
+    {rule_name:"credential_dump",hostname:"ws-finance-07",action:"LSASS memory dump via procdump",severity:"critical"},
+    {rule_name:"privilege_escalation",hostname:"ws-finance-07",action:"Token manipulation to SYSTEM",severity:"critical"},
+    {rule_name:"lateral_movement",source_ip:"ws-finance-07",destination_ip:"dc-file-01",hostname:"dc-file-01",username:"svc_backup",action:"PsExec to file server",severity:"critical"},
+    {rule_name:"reconnaissance",hostname:"dc-file-01",action:"Directory enumeration",severity:"high"},
+    {rule_name:"data_exfil",source_ip:"dc-file-01",destination_ip:"185.220.101.35",hostname:"dc-file-01",action:"2.3GB HTTPS upload",severity:"critical"},
+  ],
+  "brute-force-lateral": [
+    {rule_name:"brute_force",source_ip:"91.234.55.12",destination_ip:"10.0.0.1",hostname:"vpn-gateway",username:"asmith",action:"500+ login attempts",severity:"high"},
+    {rule_name:"brute_force_success",source_ip:"91.234.55.12",username:"asmith",action:"Successful VPN login",severity:"critical"},
+    {rule_name:"anomalous_login",username:"asmith",hostname:"ws-hr-03",action:"Off-hours geo-anomalous login",severity:"high"},
+    {rule_name:"privilege_escalation",hostname:"ws-hr-03",action:"UAC bypass",severity:"critical"},
+    {rule_name:"credential_dump",hostname:"ws-hr-03",action:"DCSync domain creds",severity:"critical"},
+    {rule_name:"lateral_movement",source_ip:"ws-hr-03",destination_ip:"dc-corp-01",hostname:"dc-corp-01",action:"RDP to DC",severity:"critical"},
+    {rule_name:"defense_evasion",hostname:"dc-corp-01",action:"Defender disabled via registry",severity:"critical"},
+    {rule_name:"data_destruction",hostname:"dc-corp-01",action:"Shadow copy delete + encryption",severity:"critical"},
+  ],
+  "webapp-exploit": [
+    {rule_name:"exploitation_attempt",source_ip:"198.51.100.23",destination_ip:"10.0.0.10",hostname:"web-app-01",action:"SQLi via /api/search",severity:"high"},
+    {rule_name:"exploitation_success",source_ip:"198.51.100.23",hostname:"web-app-01",action:"RCE via CVE-2025-XXXXX",severity:"critical"},
+    {rule_name:"reverse_shell",hostname:"web-app-01",destination_ip:"203.0.113.45",action:"Reverse shell :4444",severity:"critical"},
+    {rule_name:"credential_dump",hostname:"web-app-01",action:"Reading /etc/shadow + MySQL config",severity:"high"},
+    {rule_name:"data_exfil",hostname:"web-app-01",destination_ip:"203.0.113.45",action:"12GB MySQL dump via SCP",severity:"critical"},
+  ],
+  "supply-chain": [
+    {rule_name:"suspicious_update",hostname:"build-server-01",action:"Binary signed with unexpected cert",severity:"medium"},
+    {rule_name:"c2_communication",hostname:"build-server-01",action:"DNS beacon every 15min",severity:"high",domain:"telem-gw.internal"},
+    {rule_name:"persistence",hostname:"build-server-01",action:"Scheduled task 'WinUpdate' created",severity:"high"},
+    {rule_name:"reconnaissance",hostname:"build-server-01",action:"Network scan engineering subnet",severity:"medium"},
+    {rule_name:"data_collection",hostname:"build-server-01",action:"Source code archive 45GB",severity:"high"},
+    {rule_name:"data_exfil",hostname:"build-server-01",action:"Slow HTTPS exfil (rate-limited)",severity:"high",domain:"stat-collector.com"},
+  ],
+};
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

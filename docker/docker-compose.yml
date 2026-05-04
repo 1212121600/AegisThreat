@@ -1,0 +1,91 @@
+# AegisThreat Docker Compose — Development Environment
+# =====================================================
+# Start with: docker-compose up -d
+# Stop with:  docker-compose down
+
+version: "3.9"
+
+services:
+  # ── Message Bus ──────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ── Knowledge Graph ─────────────────────────────────────
+  neo4j:
+    image: neo4j:5.18-enterprise
+    environment:
+      NEO4J_AUTH: neo4j/password
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 2g
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*,gds.*
+    ports:
+      - "7474:7474"   # HTTP
+      - "7687:7687"   # Bolt
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - ../aegis/knowledge/schema.cypher:/import/schema.cypher:ro
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password", "RETURN 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ── AegisThreat API Server ──────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      AEGIS_BUS_BACKEND: kafka
+      AEGIS_KAFKA_SERVERS: kafka:9092
+      AEGIS_NEO4J_URI: bolt://neo4j:7687
+      AEGIS_NEO4J_USER: neo4j
+      AEGIS_NEO4J_PASSWORD: password
+      AEGIS_ENV: dev
+      AEGIS_LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../:/app
+    command: ["python", "-m", "aegis.api.server"]
+
+volumes:
+  neo4j_data:
+  neo4j_logs:

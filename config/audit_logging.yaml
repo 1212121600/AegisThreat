@@ -1,0 +1,106 @@
+# AegisThreat Audit Logging Configuration
+# =========================================
+# Structured audit logging for model provenance, security decisions,
+# and agent actions. All inference steps and defensive actions are
+# recorded for compliance and debugging.
+
+version: 1
+
+formatters:
+  json_audit:
+    format: '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "agent": "%(name)s", "message": %(message)s}'
+    datefmt: '%Y-%m-%dT%H:%M:%S'
+
+  text_audit:
+    format: '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s'
+    datefmt: '%Y-%m-%dT%H:%M:%S'
+
+handlers:
+  # Main audit log — all security decisions and model inferences
+  audit_file:
+    class: logging.handlers.RotatingFileHandler
+    filename: logs/audit.log
+    maxBytes: 104857600  # 100 MB
+    backupCount: 10
+    formatter: json_audit
+    level: INFO
+
+  # Agent-specific audit trails
+  detection_audit:
+    class: logging.handlers.RotatingFileHandler
+    filename: logs/detection_audit.log
+    maxBytes: 52428800  # 50 MB
+    backupCount: 5
+    formatter: json_audit
+    level: INFO
+
+  tracing_audit:
+    class: logging.handlers.RotatingFileHandler
+    filename: logs/tracing_audit.log
+    maxBytes: 52428800
+    backupCount: 5
+    formatter: json_audit
+    level: INFO
+
+  defense_audit:
+    class: logging.handlers.RotatingFileHandler
+    filename: logs/defense_audit.log
+    maxBytes: 52428800
+    backupCount: 5
+    formatter: json_audit
+    level: INFO
+
+  # Error log — all exceptions and failures
+  error_file:
+    class: logging.handlers.RotatingFileHandler
+    filename: logs/error.log
+    maxBytes: 104857600
+    backupCount: 10
+    formatter: text_audit
+    level: ERROR
+
+  # Console output for development
+  console:
+    class: logging.StreamHandler
+    formatter: text_audit
+    level: INFO
+
+loggers:
+  # Root logger
+  "":
+    handlers: [console]
+    level: INFO
+
+  # Agent audit loggers
+  aegis.agents.detection:
+    handlers: [detection_audit, console]
+    level: INFO
+    propagate: false
+
+  aegis.agents.tracing:
+    handlers: [tracing_audit, console]
+    level: INFO
+    propagate: false
+
+  aegis.agents.defense:
+    handlers: [defense_audit, console]
+    level: INFO
+    propagate: false
+
+  # Security audit logger
+  aegis.core.security:
+    handlers: [audit_file, error_file]
+    level: INFO
+    propagate: false
+
+  # Model provenance logger
+  aegis.inference:
+    handlers: [audit_file, console]
+    level: INFO
+    propagate: false
+
+  # API access logger
+  aegis.api:
+    handlers: [audit_file, console]
+    level: INFO
+    propagate: false

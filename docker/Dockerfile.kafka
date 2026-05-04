@@ -1,0 +1,14 @@
+# AegisThreat Kafka Custom Image
+# Pre-creates AegisThreat topics for the ThreatBus
+FROM confluentinc/cp-kafka:7.5.0
+
+# Topic creation script
+RUN echo '#!/bin/bash\n\
+kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic threat.fragment --partitions 3 --replication-factor 1\n\
+kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic threat.chain --partitions 3 --replication-factor 1\n\
+kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic threat.decision --partitions 3 --replication-factor 1\n\
+kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic threat.debate --partitions 1 --replication-factor 1\n\
+kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic threat.heartbeat --partitions 1 --replication-factor 1\n\
+kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic threat.command --partitions 1 --replication-factor 1\n\
+kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic threat.dlq --partitions 1 --replication-factor 1\n\
+echo "AegisThreat Kafka topics created"' > /create_topics.sh && chmod +x /create_topics.sh

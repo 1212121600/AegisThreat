@@ -1,0 +1,45 @@
+# AegisThreat - Core Dependencies
+# Multi-Agent APT Attack Chain Tracing & Adaptive Defense System
+
+# --- Web Framework & API ---
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+
+# --- Messaging ---
+kafka-python>=2.0.2
+
+# --- Knowledge Graph ---
+neo4j>=5.18.0
+
+# --- ML / AI Core ---
+numpy>=1.26.0
+scikit-learn>=1.4.0
+torch>=2.2.0
+
+# --- Configuration ---
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# --- HTTP Client ---
+httpx>=0.27.0
+
+# --- Structured Logging ---
+structlog>=24.1.0
+
+# --- Optional: Graph Neural Networks ---
+# torch-geometric>=2.5.0
+
+# --- Optional: LLM Integration ---
+# transformers>=4.38.0
+# sentence-transformers>=2.5.0
+# vllm>=0.2.0
+
+# --- Optional: Stream Processing ---
+# apache-flink>=1.18.0
+
+# --- Development ---
+# pytest>=8.0.0
+# pytest-asyncio>=0.23.0
+# black>=24.0.0
+# ruff>=0.2.0

@@ -1,0 +1,86 @@
+# AegisThreat Agent Configuration
+# ================================
+# This file holds environment-specific overrides.
+# All values are optional — defaults are in config/settings.py
+#
+# FIX v2: Added dual-window, dedup, pruning, security, and cost parameters.
+
+environment: dev
+
+bus:
+  backend: memory  # "memory" | "kafka"
+  # Dead Letter Queue: failed events route here for manual inspection
+  dlq_enabled: true
+  dlq_retention_hours: 72
+
+agents:
+  detection:
+    # Dual-window: fast track for critical/high alerts, full for regular
+    fast_window_minutes: 5
+    full_window_minutes: 30
+    min_alerts_per_fragment: 3
+    min_severity: low  # "critical" | "high" | "medium" | "low" | "info"
+    dedup_window_seconds: 300  # 5-min dedup window
+  tracing:
+    max_chain_depth: 6  # Anchor-based BFS; 6 is sufficient for 85%+ chains
+    top_k_paths: 3
+    enable_llm_verification: false
+    enable_rule_prefilter: true  # Platform/tactic pruning before scoring
+    llm_confidence_threshold: 0.5  # Only LLM-verify paths > this score
+  defense:
+    max_debate_rounds: 3
+    enable_mcts: false
+    enable_debate: false
+    default_asset_criticality: 3  # Used when CMDB unavailable (1-5)
+
+knowledge_graph:
+  neo4j_uri: bolt://localhost:7687
+  neo4j_user: neo4j
+  neo4j_password: password
+  use_mock: true
+
+llm:
+  provider: openai  # "openai" | "vllm" | "ollama"
+  api_key: ""
+  api_base: https://api.openai.com/v1
+  model: gpt-4o
+  temperature: 0.1
+  max_tokens: 2048
+  # Cost optimization
+  local_model: llama-3-8b  # Used for summaries (80% of call volume)
+  vector_cache_enabled: false  # Milvus cache for chain reasoning results
+
+vector_store:
+  backend: memory  # "memory" | "milvus" | "pgvector"
+  milvus_host: localhost
+  milvus_port: 19530
+
+server:
+  host: 0.0.0.0
+  port: 8000
+  cors_origins: ["*"]
+
+logging:
+  level: INFO  # DEBUG | INFO | WARNING | ERROR
+  format: console  # "json" | "console"
+  audit_log_path: logs/audit.log
+
+security:
+  # Message signing: prevents tampering and injection on ThreatBus
+  message_signing_enabled: false  # Enable in production with AEGIS_SIGNING_SECRET
+  # Replay protection: prevents replay of old valid-signed events
+  replay_protection_enabled: false
+  replay_window_seconds: 3600
+  # Human-in-the-loop: always require approval before executing defensive actions
+  human_approval_required: true
+  max_auto_actions: 0  # 0 = no automatic execution under any circumstances
+  # Audit trail: every model input/output is logged for provenance
+  audit_log_path: logs/audit.log
+  audit_all_inferences: true  # Log every agent inference step
+
+cost:
+  # Per-day token budget caps (0 = unlimited)
+  max_daily_gpt4o_tokens: 0
+  max_daily_local_tokens: 0
+  # Vector cache hit rate target
+  cache_hit_rate_target: 0.35

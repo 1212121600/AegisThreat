@@ -1,0 +1,14 @@
+# AegisThreat Neo4j Custom Image
+# Pre-loads ATT&CK knowledge graph schema and seed data
+FROM neo4j:5.18-enterprise
+
+ENV NEO4J_AUTH=neo4j/password
+ENV NEO4J_dbms_memory_heap_initial__size=512m
+ENV NEO4J_dbms_memory_heap_max__size=2g
+ENV NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.*
+
+# Copy schema and seed data
+COPY ../aegis/knowledge/schema.cypher /var/lib/neo4j/import/schema.cypher
+
+# The schema is loaded at first startup via the docker-compose healthcheck
+# or manually: cypher-shell -u neo4j -p password -f /var/lib/neo4j/import/schema.cypher

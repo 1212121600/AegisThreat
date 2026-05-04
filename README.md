@@ -284,44 +284,6 @@ python tools/attck_importer.py --neo4j-uri bolt://localhost:7687 --neo4j-user ne
 
 ---
 
-## Production Readiness
-
-AegisThreat is currently at **Phase 0 (MVP)**. It is suitable for:
-- Security research and experimentation
-- Architecture reference for multi-agent SOC automation
-- Synthetic data generation for attack simulation
-- Educational demonstrations of ATT&CK-based reasoning
-
-It is **not** ready for production deployment. See [Production Readiness Assessment](docs/PRODUCTION_READINESS.md) and [Production Gap Analysis](docs/PRODUCTION_GAP.md) for detailed assessments.
-
-**Production blockers**: No real SIEM data connector, no trained ML models, no production authentication, no frontend application, no automated SOAR execution.
-
-**Estimated path to production**: 12-18 months with a dedicated engineering team of 3-5 people.
-
----
-
-## Contributing
-
-This project is in early development. Areas where contributions are most valuable:
-
-1. **SIEM/EDR connectors** — add support for additional security platforms
-2. **TTP mapping rules** — expand `ALERT_TO_TTP` with more vendor-specific patterns
-3. **Attack scenarios** — add more synthetic attack templates in `tools/data_generator.py`
-4. **Path scoring** — improve heuristic scoring with real-world attack chain data
-5. **Dashboard** — enhance the single-file React dashboard with additional visualizations
-
-Before submitting a PR, please run:
-
-```bash
-python -m pytest tests/ -v
-python -m aegis.cli demo --scenario all
-```
-
----
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
